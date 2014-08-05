@@ -48,10 +48,20 @@ class Article:
     fe.description(self.subtitle)
 
 
-# THE DEFAULT ROUTE
-@app.route("/rss/<byline>")
-def index(byline):
+# get a feed for a  byline
+@app.route("/byline/<byline>")
+def byline(byline):
   url = "http://www.theatlantic.com/" + byline.replace("/","") + "/"
+  return get_url(url)
+
+
+# get a feed for a section
+@app.route("/section/<sectiona>/<sectionb>/<sectionc>/")
+def section(sectiona,sectionb,sectionc):
+  url = "http://www.theatlantic.com/{0}/{1}/{2}".format(sectiona,sectionb,sectionc)
+  return get_url(url)
+
+def get_url(url):
   res = requests.get(url)
   soup = BeautifulSoup(res.text)
 #load the articles into classes
@@ -93,5 +103,5 @@ def index(byline):
   return flask.Response(fg.rss_str(pretty=True), mimetype='application/rss+xml')
 
 if __name__ == "__main__":
-  #app.debug = True
+  app.debug = True
   app.run(host='0.0.0.0',port=5050)
