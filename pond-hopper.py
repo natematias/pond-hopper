@@ -16,7 +16,7 @@ app = Flask(__name__)
 
 
 class Article:
-  def __init__(self, section, author=None):
+  def __init__(self, section, author=None, social=False):
 
     #extract information from the page
     title_link = section.findAll(attrs={"class":"river-headline"})[0].findAll("a")[0]
@@ -43,8 +43,9 @@ class Article:
     #TODO: download the first paragraph from the article
 
     #TODO: download social media metrics for the article
-    self.facebook = facebook(self.url)
-    self.twitter = twitter(self.url)
+    if(social):
+      self.facebook = facebook(self.url)
+      self.twitter = twitter(self.url)
 
   def append_feedgen(self, fe):
  #   if (fg.id() is not None):
@@ -65,8 +66,11 @@ class Article:
 @app.route("/metrics/byline/<byline>")
 def byline_metrics(byline):
   url = "http://www.theatlantic.com/" + byline.replace("/","") + "/"
-  fg, articles = get_fg(url)
-  return render_template("metrics.html", fg = fg, articles=articles, byline=byline)
+  fg, articles = get_fg(url,social=True)
+  twitter = [str(x.twitter) for x in articles]
+  facebook = [str(x.facebook['data'][0]['total_count']) for x in articles]
+  labels = [''] * len(articles) #[x.date.strftime('%b %d %Y') for x in articles]
+  return render_template("metrics.html", fg = fg, articles=articles, byline=byline, twitter = twitter, facebook=facebook, labels=labels)
 
 # get a feed for a  byline
 @app.route("/byline/<byline>")
@@ -80,7 +84,7 @@ def section(sectiona,sectionb,sectionc):
   url = "http://www.theatlantic.com/{0}/{1}/{2}".format(sectiona,sectionb,sectionc)
   return get_feed_for_url(url)
 
-def get_fg(url):
+def get_fg(url, social=False):
   res = requests.get(url)
   soup = BeautifulSoup(res.text)
 #load the articles into classes
@@ -92,7 +96,7 @@ def get_fg(url):
     author = ' '.join(author_tag[0].get_text().split())
 
   for article in soup.findAll(attrs={"class":"river-item"}):
-    articles.append(Article(article, author=author))
+    articles.append(Article(article, author=author,social=social))
 
 #set up the feed, with basic metadata
   fg = FeedGenerator()
@@ -137,7 +141,6 @@ def twitter(url):
   res = requests.get("http://urls.api.twitter.com/1/urls/count.json?url=" + url)
   return json.loads(res.text)['count']
  
-  
 
 if __name__ == "__main__":
   app.debug = True
