@@ -18,14 +18,14 @@
 			<p>{{fg.description()}}</p>
 			
 		</div>
-	<div class="page-header"><h2>Latest Articles</h2></div>
+	<div><em>Social media data: Facebook is gray and Twitter is blue.</em></div>
         <canvas id="myChart" width="600" height="200"></canvas>
         <script language="Javascript" type="text/javascript">
 	var data = {
 	    labels: [{{','.join(labels)|safe}}],//["January", "February", "March", "April", "May", "June", "July"],
 	    datasets: [
 		{
-		    label: "My First dataset",
+		    label: "Facebook",
 		    fillColor: "rgba(220,220,220,0.5)",
 		    strokeColor: "rgba(220,220,220,0.8)",
 		    highlightFill: "rgba(220,220,220,0.75)",
@@ -33,7 +33,7 @@
 		    data: [{{','.join(facebook)}}]
 		},
 		{
-		    label: "My Second dataset",
+		    label: "Twitter",
 		    fillColor: "rgba(151,187,205,0.5)",
 		    strokeColor: "rgba(151,187,205,0.8)",
 		    highlightFill: "rgba(151,187,205,0.75)",

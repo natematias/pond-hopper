@@ -141,8 +141,24 @@ def facebook(url):
 def twitter(url):
   res = requests.get("http://urls.api.twitter.com/1/urls/count.json?url=" + url)
   return json.loads(res.text)['count']
+
+def reddit(url):
+  reddit_url = "http://buttons.reddit.com/button_info.json?url={0}".format(url)
+  res = requests.get(reddit_url)
+  #import pdb; pdb.set_trace()
+  j = json.loads(res.text)
+  if not "data" in j:
+    print "REDDIT ERROR WITH {0}".format(reddit_url)
+    return {"ups":"0", "num_comments":"0"}
+  else:
+    data = j['data']
+  if "children" in data and len(data["children"]) > 0 and "data" in data["children"][0]:
+    child = data["children"][0]
+    return {"ups":child["data"]["ups"],"num_comments":child["data"]["num_comments"]}
+  return {"ups":"0", "num_comments":"0"}
+
  
 
 if __name__ == "__main__":
-  app.debug = True
+  #app.debug = True
   app.run(host='0.0.0.0',port=5050)
