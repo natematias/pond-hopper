@@ -1,4 +1,5 @@
 import re
+import json
 import sys
 import os
 import requests
@@ -10,6 +11,7 @@ from pytz import timezone
 import pytz
 import flask
 from flask import Flask
+from flask import render_template
 app = Flask(__name__)
 
 
@@ -30,9 +32,19 @@ class Article:
     else:
       self.bylines.append({"name":author})
 
+    self.image = None
+    thumb = section.findAll(attrs={"class":"river-thumb"})
+    if(len(thumb)>0):
+      img = thumb[0].findAll("img")
+      if(len(img)>0):
+        self.image = img[0]['src']
+    print self.image
+
     #TODO: download the first paragraph from the article
 
     #TODO: download social media metrics for the article
+    self.facebook = facebook(self.url)
+    self.twitter = twitter(self.url)
 
   def append_feedgen(self, fe):
  #   if (fg.id() is not None):
@@ -40,28 +52,35 @@ class Article:
     fe.title(self.title)
     for byline in self.bylines:
       fe.author({"name":byline["name"]})
-    fe.link(href=self.url)
+    fe.link([{"href":self.url},{"href":self.image}])
     fe.id(self.url)
     fe.updated(self.date)
- #   fe.pubdate(self.date)
+    #fe.image(url=self.image)
+    fe.pubdate(self.date)
  #   fe.subtitle(self.subtitle)
     fe.description(self.subtitle)
 
+
+
+@app.route("/metrics/byline/<byline>")
+def byline_metrics(byline):
+  url = "http://www.theatlantic.com/" + byline.replace("/","") + "/"
+  fg, articles = get_fg(url)
+  return render_template("metrics.html", fg = fg, articles=articles, byline=byline)
 
 # get a feed for a  byline
 @app.route("/byline/<byline>")
 def byline(byline):
   url = "http://www.theatlantic.com/" + byline.replace("/","") + "/"
-  return get_url(url)
-
+  return get_feed_for_url(url)
 
 # get a feed for a section
 @app.route("/section/<sectiona>/<sectionb>/<sectionc>/")
 def section(sectiona,sectionb,sectionc):
   url = "http://www.theatlantic.com/{0}/{1}/{2}".format(sectiona,sectionb,sectionc)
-  return get_url(url)
+  return get_feed_for_url(url)
 
-def get_url(url):
+def get_fg(url):
   res = requests.get(url)
   soup = BeautifulSoup(res.text)
 #load the articles into classes
@@ -72,16 +91,18 @@ def get_url(url):
   if len(author_tag)>0:
     author = ' '.join(author_tag[0].get_text().split())
 
-  for article in soup.findAll(attrs={"class":"river-content"}):
+  for article in soup.findAll(attrs={"class":"river-item"}):
     articles.append(Article(article, author=author))
 
 #set up the feed, with basic metadata
   fg = FeedGenerator()
   fg.link(href=url)
-  if(author is None):
-    fg.author({"name":articles[0].bylines[0]})
-  title_tag = soup.findAll(attrs={"class":"display-category"})
+  if(author is None and len(articles)>0):
+    fg.author(name=articles[0].bylines[0])
+  else:
+    fg.author(name=author)
 
+  title_tag = soup.findAll(attrs={"class":"display-category"})
 #set the title if there's not a category -- e.g. it's a person's page
   if(len(title_tag)>0):
     title = ' '.join(title_tag[0].get_text().split())
@@ -99,8 +120,24 @@ def get_url(url):
 #add each article to the feed
   for article in articles:
     article.append_feedgen(fg.add_entry())
+  return fg, articles
 
+#return a feed for a url
+def get_feed_for_url(url):
+  fg = get_fg(url)[0]
   return flask.Response(fg.rss_str(pretty=True), mimetype='application/rss+xml')
+
+#get facebook data for a url
+def facebook(url):
+  #res = requests.get("http://graph.facebook.com/" + url)
+  res = requests.get("https://graph.facebook.com/fql?q=SELECT%20like_count,%20total_count,%20share_count,%20click_count,%20comment_count%20FROM%20link_stat%20WHERE%20url%20=%20%22{0}%22".format(url.replace("http://","")))
+  return json.loads(res.text)
+
+def twitter(url):
+  res = requests.get("http://urls.api.twitter.com/1/urls/count.json?url=" + url)
+  return json.loads(res.text)['count']
+ 
+  
 
 if __name__ == "__main__":
   app.debug = True

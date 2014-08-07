@@ -1,0 +1,44 @@
+<html>
+  <head>
+<!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
+
+<!-- Optional theme -->
+<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css">
+
+<!-- Latest compiled and minified JavaScript -->
+<script src="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+  </head>
+<body role="document">
+	<div class="container theme-showcase" role="main">
+		<div class="jumbotron">
+			<h2>Atlantic articles by {{fg.author()[0]['name']}} <a href="/byline/{{byline}}"><img src="https://upload.wikimedia.org/wikipedia/en/thumb/4/43/Feed-icon.svg/256px-Feed-icon.svg.png" width="24" /></a></h2>
+			<p>{{fg.description()}}</p>
+			
+		</div>
+	<div class="page-header"><h2>Articles</h2></div>
+	<table class="table table-bordered">
+		<thead>
+			<tr>
+				<th>image</th>
+				<th>title</th>
+				<th>date</th>
+				<th>twitter</th>
+				<th>fb</th>
+				<th>fb data</th>
+			</tr>
+		</thead>
+	{% for article in articles %}
+        <tr>
+		<td><img src="{{article.image}}" width="100"/></td>
+		<td><a target="new" href="{{article.url}}">{{article.title}}</a><br/><em>{{article.subtitle}}</em></td>
+		<td>{{article.date.strftime('%b %d %Y')}}</td>
+		<td>{{article.twitter}}</td>
+		<td>{{article.facebook['data'][0]['total_count']}}</td>
+		<td>{{article.facebook['data'][0]}}</td>
+	</tr>
+	{% endfor %}
+	</table>
+	</div>
+</body>
+</html>
