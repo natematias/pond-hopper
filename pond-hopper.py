@@ -17,7 +17,20 @@ app = Flask(__name__)
 
 class Article:
   def __init__(self, section, author=None, social=False):
+    self.author = author
 
+  def append_feedgen(self, fe):
+    fe.title(self.title)
+    for byline in self.bylines:
+      fe.author({"name":byline["name"]})
+    fe.link([{"href":self.url},{"href":self.image}])
+    fe.id(self.url)
+    fe.updated(self.date)
+    fe.pubdate(self.date)
+    fe.description(self.subtitle)
+
+class AtlanticArticle(Article):
+  def __init__(self, section, author=None, social=False):
     #extract information from the page
     title_link = section.findAll(attrs={"class":"river-headline"})[0].findAll("a")[0]
     self.title = title_link.get_text()
@@ -46,20 +59,6 @@ class Article:
     if(social):
       self.facebook = facebook(self.url)
       self.twitter = twitter(self.url)
-
-  def append_feedgen(self, fe):
- #   if (fg.id() is not None):
- #     fg.add_entry()
-    fe.title(self.title)
-    for byline in self.bylines:
-      fe.author({"name":byline["name"]})
-    fe.link([{"href":self.url},{"href":self.image}])
-    fe.id(self.url)
-    fe.updated(self.date)
-    #fe.image(url=self.image)
-    fe.pubdate(self.date)
- #   fe.subtitle(self.subtitle)
-    fe.description(self.subtitle)
 
 
 
@@ -97,7 +96,7 @@ def get_fg(url, social=False):
     author = ' '.join(author_tag[0].get_text().split())
 
   for article in soup.findAll(attrs={"class":"river-item"}):
-    articles.append(Article(article, author=author,social=social))
+    articles.append(AtlanticArticle(article, author=author,social=social))
 
 #set up the feed, with basic metadata
   fg = FeedGenerator()
