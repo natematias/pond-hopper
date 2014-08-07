@@ -69,7 +69,8 @@ def byline_metrics(byline):
   fg, articles = get_fg(url,social=True)
   twitter = [str(x.twitter) for x in articles]
   facebook = [str(x.facebook['data'][0]['total_count']) for x in articles]
-  labels = [''] * len(articles) #[x.date.strftime('%b %d %Y') for x in articles]
+  labels = ['"' + x.date.strftime('%b %d %Y') + '"' for x in articles]
+  labels.reverse()
   return render_template("metrics.html", fg = fg, articles=articles, byline=byline, twitter = twitter, facebook=facebook, labels=labels)
 
 # get a feed for a  byline

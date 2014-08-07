@@ -22,7 +22,7 @@
         <canvas id="myChart" width="600" height="200"></canvas>
         <script language="Javascript" type="text/javascript">
 	var data = {
-	    labels: [{{','.join(labels)}}],//["January", "February", "March", "April", "May", "June", "July"],
+	    labels: [{{','.join(labels)|safe}}],//["January", "February", "March", "April", "May", "June", "July"],
 	    datasets: [
 		{
 		    label: "My First dataset",
