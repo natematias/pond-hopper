@@ -70,7 +70,10 @@ def byline_metrics(byline):
   facebook = [str(x.facebook['data'][0]['total_count']) for x in articles]
   labels = ['"' + x.date.strftime('%b %d %Y') + '"' for x in articles]
   labels.reverse()
-  return render_template("metrics.html", fg = fg, articles=articles, byline=byline, twitter = twitter, facebook=facebook, labels=labels)
+  data = {"twitter":twitter,"facebook":facebook}
+  data['twitter'].reverse()
+  data['facebook'].reverse()
+  return render_template("metrics.html", fg = fg, articles=articles, byline=byline, twitter = twitter, facebook=facebook, labels=labels, data=data)
 
 # get a feed for a  byline
 @app.route("/byline/<byline>")
@@ -159,5 +162,5 @@ def reddit(url):
  
 
 if __name__ == "__main__":
-  #app.debug = True
+  app.debug = True
   app.run(host='0.0.0.0',port=5050)
