@@ -59,6 +59,7 @@
 				<th>fb</th>
 				<th>fb data</th>
 				<th>cliff data</th>
+				<th>gender count</th>
 			</tr>
 		</thead>
 	{% for article in articles %}
@@ -70,6 +71,7 @@
 		<td>{{article.facebook['data'][0]['total_count']}}</td>
 		<td>{{article.facebook['data'][0]}}</td>
 		<td>{{article.cliff['results']}}</td>
+		<td>{{article.gender_counts}}</td>
 	</tr>
 	{% endfor %}
 	</table>

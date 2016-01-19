@@ -12,9 +12,17 @@ import pytz
 import flask
 from flask import Flask
 from flask import render_template
+from gender_detector import GenderDetector
 import nltk
+import string
+from collections import defaultdict
+import codecs
+
+from mediameter.cliff import Cliff
 
 sent_detector = nltk.data.load('tokenizers/punkt/english.pickle')
+sex_detector = GenderDetector('us')
+my_cliff = Cliff('http://civicprod.media.mit.edu',8080)
 
 
 
@@ -42,6 +50,8 @@ class AtlanticArticle(Article):
     self.title = title_link.findAll("h2")[0].get_text()
     self.url = re.sub(r'\#.*', '', title_link['href'])
     eastern = timezone('US/Eastern')
+    self.article_text = None
+    self.cliff = None
     # some dates come in as July/August 2014, so strip the first month field from it
     datefield = section.findAll("time")[0]#re.sub(r'.*\/?','',section.findAll(attrs={"class":"date"})[0].get_text())
     #import pdb;pdb.set_trace()
@@ -60,12 +70,13 @@ class AtlanticArticle(Article):
       img = thumb[0].findAll("img")
       if(len(img)>0):
         self.image = img[0]['src']
-    print self.image
+    #print self.image
 
     #TODO: download the first paragraph from the article
+    print self.title.encode('ascii', 'ignore')
     self.get_article_text()
     self.query_cliff()
-
+    self.get_gender_counts()
     #TODO: download social media metrics for the article
     if(social):
       self.facebook = facebook("http://theatlantic.com/" + self.url)
@@ -74,24 +85,59 @@ class AtlanticArticle(Article):
     res = requests.get("http://theatlantic.com" + self.url)
     soup = BeautifulSoup(res.text)
     body_tag = soup.findAll(attrs={"class":"article-body"})
-    self.article_text = body_tag[0].text
+    self.article_text = body_tag[0].text.replace("\n", " \n")
     self.sentences = len(sent_detector.tokenize(self.article_text))
     return self.article_text
 
   def query_cliff(self):
-    cliff_url = "http://cliff.mediameter.org/process"
-    a_text = self.article_text.encode('ascii', 'ignore')
-    res = requests.post(cliff_url, data={"demonyms":"false", "text":a_text})
-    self.cliff = json.loads(res.text)
-    #f = open("articletext.log", "a")
+    #cliff_url = "http://cliff.mediameter.org/process"
+    a_text = self.article_text#.encode('ascii', 'ignore')
+    #res = requests.post(cliff_url, data={"demonyms":"false", "text":a_text})
+    self.cliff = my_cliff.parseText(a_text)#json.loads(res.text)
+    #f = codecs.open("articletext.log", "a", encoding='utf_8')
     #f.write(a_text)
     #f.write("\n\n ---------------\n\n")
-    #f.write(res.text)
+    #f.write(self.cliff)
     #f.write("\n\n ---------------\n\n")
     #f.close()
     self.cliff['results']['mentions']=None
     self.cliff['results']['places']=None
     return self.cliff
+
+  def person_list(self):
+    return {"names":set(),"first":None, "gender":"unknown", "count":0}
+
+  def get_gender_counts(self):
+    if(self.cliff is None):
+      return None
+    people_list = defaultdict(self.person_list)
+    for person in self.cliff['results']['people']:
+      fullname = person['name']
+      nametokens = string.split(fullname.strip(), ' ')
+      surname = nametokens[-1]
+      if(len(nametokens)==0):
+        continue
+
+      ## ASSUMPTION: SINGLE NAME IS A SURNAME SITUATION
+      people_list[surname]['names'].add(fullname)
+      people_list[surname]['count'] += person['count']
+      if(len(nametokens)>1):
+        people_list[surname]['first'] = nametokens[0]
+
+    counts = {"male":0, "female":0, "unknown":0}
+    for key in people_list.keys():
+      person = people_list[key]
+      if(person['first'] is None):
+        counts['unknown'] += person['count']
+        continue
+      gender = sex_detector.guess(person['first'])
+      counts[gender] += person['count']
+      people_list[gender] = gender
+
+    self.people_list = people_list
+    self.gender_counts = counts
+
+    
 
 
 @app.route("/metrics/byline/<byline>")
