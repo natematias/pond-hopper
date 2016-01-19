@@ -12,6 +12,12 @@ import pytz
 import flask
 from flask import Flask
 from flask import render_template
+import nltk
+
+sent_detector = nltk.data.load('tokenizers/punkt/english.pickle')
+
+
+
 app = Flask(__name__)
 
 
@@ -32,12 +38,15 @@ class Article:
 class AtlanticArticle(Article):
   def __init__(self, section, author=None, social=False):
     #extract information from the page
-    title_link = section.findAll(attrs={"class":"river-headline"})[0].findAll("a")[0]
-    self.title = title_link.get_text()
-    self.url = title_link['href']
+    title_link = section.findAll("a")[0]#findAll(attrs={"class":"article"})[0].findAll("a")[0]
+    self.title = title_link.findAll("h2")[0].get_text()
+    self.url = re.sub(r'\#.*', '', title_link['href'])
     eastern = timezone('US/Eastern')
-    self.date = eastern.localize(dateutil.parser.parse(section.findAll(attrs={"class":"river-date"})[0].get_text()))
-    self.subtitle = section.findAll(attrs={"class":"river-dek"})[0].get_text()
+    # some dates come in as July/August 2014, so strip the first month field from it
+    datefield = section.findAll("time")[0]#re.sub(r'.*\/?','',section.findAll(attrs={"class":"date"})[0].get_text())
+    #import pdb;pdb.set_trace()
+    self.date = eastern.localize(dateutil.parser.parse(datefield.text.strip()))
+    self.subtitle = section.findAll(attrs={"class":"dek"})[0].get_text()
     self.bylines = []
     if author is None:
       for auth in section.findAll(attrs={"class":"author"}):
@@ -46,7 +55,7 @@ class AtlanticArticle(Article):
       self.bylines.append({"name":author})
 
     self.image = None
-    thumb = section.findAll(attrs={"class":"river-thumb"})
+    thumb = section.findAll("figure")
     if(len(thumb)>0):
       img = thumb[0].findAll("img")
       if(len(img)>0):
@@ -54,19 +63,43 @@ class AtlanticArticle(Article):
     print self.image
 
     #TODO: download the first paragraph from the article
+    self.get_article_text()
+    self.query_cliff()
 
     #TODO: download social media metrics for the article
     if(social):
-      self.facebook = facebook(self.url)
-      self.twitter = twitter(self.url)
+      self.facebook = facebook("http://theatlantic.com/" + self.url)
+      #self.twitter = twitter(self.url)
+  def get_article_text(self):
+    res = requests.get("http://theatlantic.com" + self.url)
+    soup = BeautifulSoup(res.text)
+    body_tag = soup.findAll(attrs={"class":"article-body"})
+    self.article_text = body_tag[0].text
+    self.sentences = len(sent_detector.tokenize(self.article_text))
+    return self.article_text
 
+  def query_cliff(self):
+    cliff_url = "http://cliff.mediameter.org/process"
+    a_text = self.article_text.encode('ascii', 'ignore')
+    res = requests.post(cliff_url, data={"demonyms":"false", "text":a_text})
+    self.cliff = json.loads(res.text)
+    #f = open("articletext.log", "a")
+    #f.write(a_text)
+    #f.write("\n\n ---------------\n\n")
+    #f.write(res.text)
+    #f.write("\n\n ---------------\n\n")
+    #f.close()
+    self.cliff['results']['mentions']=None
+    self.cliff['results']['places']=None
+    return self.cliff
 
 
 @app.route("/metrics/byline/<byline>")
 def byline_metrics(byline):
-  url = "http://www.theatlantic.com/" + byline.replace("/","") + "/"
+  url = "http://www.theatlantic.com/author/" + byline.replace("/","") + "/"
   fg, articles = get_fg(url,social=True)
-  twitter = [str(x.twitter) for x in articles]
+  #twitter = [str(x.twitter) for x in articles]
+  twitter = []
   facebook = [str(x.facebook['data'][0]['total_count']) for x in articles]
   labels = ['"' + x.date.strftime('%b %d %Y') + '"' for x in articles]
   labels.reverse()
@@ -79,6 +112,7 @@ def byline_metrics(byline):
 @app.route("/byline/<byline>")
 def byline(byline):
   url = "http://www.theatlantic.com/" + byline.replace("/","") + "/"
+  #print url
   return get_feed_for_url(url)
 
 # get a feed for a section
@@ -93,14 +127,18 @@ def get_fg(url, social=False):
 #load the articles into classes
   articles = []
 
-  author_tag = soup.findAll("h1", attrs={"class":"author"})
+  author_tag = soup.findAll("div", attrs={"class":"author-header"})
+  #at = author_tag.findAll("div", attrs={"class":"name"})
   author = None
   if len(author_tag)>0:
-    author = ' '.join(author_tag[0].get_text().split())
+    at = author_tag[0].findAll(attrs={"class":"name"})
+    #author = ' '.join(author_tag[0].get_text().split())
+    author = at[0].text.strip()
 
-  for article in soup.findAll(attrs={"class":"river-item"}):
+  for article in soup.findAll(attrs={"class":"article"}):
     articles.append(AtlanticArticle(article, author=author,social=social))
 
+  #import pdb; pdb.set_trace()
 #set up the feed, with basic metadata
   fg = FeedGenerator()
   fg.link(href=url)
@@ -114,7 +152,7 @@ def get_fg(url, social=False):
   if(len(title_tag)>0):
     title = ' '.join(title_tag[0].get_text().split())
   else:
-    title = "Atlantic posts by {0}".format(author)
+    title = "Atlantic posts by {0}".format(author.encode('ascii', 'ignore'))
   fg.title(title)
 
 #set the description
@@ -138,11 +176,15 @@ def get_feed_for_url(url):
 def facebook(url):
   #res = requests.get("http://graph.facebook.com/" + url)
   res = requests.get("https://graph.facebook.com/fql?q=SELECT%20like_count,%20total_count,%20share_count,%20click_count,%20comment_count%20FROM%20link_stat%20WHERE%20url%20=%20%22{0}%22".format(url.replace("http://","")))
-  return json.loads(res.text)
+  j = json.loads(res.text)
+  if "data" in j.keys() and len(j['data'])>0:
+    return j
+  else:
+    return {"data":[{"total_count":0}]}
 
-def twitter(url):
-  res = requests.get("http://urls.api.twitter.com/1/urls/count.json?url=" + url)
-  return json.loads(res.text)['count']
+#def twitter(url):
+#  res = requests.get("http://urls.api.twitter.com/1/urls/count.json?url=" + url)
+#  return json.loads(res.text)['count']
 
 def reddit(url):
   reddit_url = "http://buttons.reddit.com/button_info.json?url={0}".format(url)
